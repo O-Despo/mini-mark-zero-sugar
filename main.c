@@ -1,107 +1,61 @@
-/391125* C markdown parser
+/* C markdown parser
 * Written by Oliver D'Esposiot (O-Despo)
 */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <err.h>
 
+typedef enum {B_NONE, HTML, HR, HEADER, UL_LIST, OR_LIST, B_CODE, P} Block;
+typedef enum {L_NONE, EMPHASIS, ODE} In_Line;
+typedef enum {START, MIDDLE, END} Line_Pos;
+
 typedef struct {
-    int in_html;
-    int in_code;
-    int in_header;
-    int in_un_list;
-    int in_or_list;
-    int in_strong;
-    int in_ital;
-    int in_quotes;
-    int new_line;
+    Block block;
+    In_Line in_line;
+    Line_Pos line_pos;
+    Line_Pos last_pos;
 } State;
 
-int escape_html(State *state, int c){
-    int escaped = 0;
-
-    if(state->in_html == false){
-        if(c == '&'){
-            fputs("&amp;", stdout); 
-            escaped = 1;
-        } else if (c == '<'){
-            fputs("&lt;", stdout);
-            escaped = 1;
-        }
-    }
-
-    return escaped;
-}
-
-int block_format_un_list(State *state, FILE *in_file, int c){
-    int formated = 0;
-
-    if(state->new_line && (c == '-' || c == '+' || c == "*"){
-        if((c = fgetc(in_file)) == ' '){ 
-            /* If we have a first match then enter list */
-            if(!state->in_un_list){
-                fputs("<ul>\n"); 
-            }
-            /* Enter list item */
-            fputs("<li>"); 
-
-        } else {
-            if(ungetc(c, in_file) == EOF){
-                err(EXIT_FAILURE, "pushing char onto buffer\n");
-            }           
-        }
-    } else if (state->new_line && state->in_un_list){
-        state->in_un_list = 0;
-        fputs("<//ul>\n");    /* Add clisng tag at end of block and exit block */
-    } else if (c == '\n' && state->in_un_list) {
-        fputs("<\\ul>\n");  /* Add closing tag at end of line if in list */
-    }
-}
-
-int block_format_header(State *state, FILE *in_file, int c){
-    int formated = 0;
-
-    if(c == '#' && state->in_header == 0){
-        /* Interate in_header until not more # or level 6 */
-        while(c == '#' && state->in_header < 6){
-            state->in_header++;
-            c = fgetc(in_file);
-        }
-        
-        /* If we have reached level 6 header this will eat the rest of # */
-        if(c == '#'){
-            while('#' == (c = fgetc(in_file))){};
-        }
-        
-        /* The proir code will go one charater se push back onto bugger */
-        if(ungetc(c, in_file) == EOF){
-            err(EXIT_FAILURE, "Error pushing char onto buffer\n");
-        }
-
-        fprintf(stdout, "<h%d>", state->in_header);
+short format_break(State *state, FILE *in_file, char c){
+    /* short format_break(State *state, FILE *in_file, char c)
+     *
+     * Two END charecters in a row then insert a blank line. Write to file.
+     * On format reuturns 1. Dose not effect state.
+     */
+    short formated = 0;
+    if(state->line_pos == END && state->last_pos == END){
+        fputs("</br>", stdout);
         formated = 1;
-    } else if (c == '\n' && state->in_header != 0){
-        /* In a header and see new line add last html tag */
-        fprintf(stdout, "<\\h%d>", state->in_header);
-        state->in_header = 0;
-    } else if (c == '#' && state->in_header != 0){ 
-        /* If we already are in a header and see # get rid of them */
-        while('#' == (c = fgetc(in_file)) && c != EOF){};
-
-        if(ungetc(c, in_file) == EOF){
-            err(EXIT_FAILURE, "Error pushing char onto buffer\n");
-        }
     }
 
     return formated;
 }
 
+void set_line_pos(State *state, char c){
+    /* short set_line_pos(State *state, char c)
+     *
+     * Sets the current line position and the last pos. Mods state.
+     * Dose not write to output. Dose not return value.
+     * If `\n` the set END. If END set START. If START and not `\n` set MIDDLE.
+     * When POS is set save last POS.
+     */
+    if(c == '\n'){
+        state->last_pos = state->line_pos;
+        state->line_pos = END;    
+    } else if (state->line_pos == END) {
+        state->last_pos = state->line_pos;
+        state->line_pos = START;
+    } else if (state->line_pos == START) {
+        state->last_pos = state->line_pos;
+        state->line_pos = MIDDLE; 
+    }
+}
+
 int main(int argc, char *argv[]){
     int c;
     FILE *in_file;
-    State state = {0};
+    State state = {B_NONE, L_NONE, END, END}; /* Set the frist line to line start */
     
     /* Check for correct number of argumnets */
     if(argc != 2){
@@ -111,23 +65,24 @@ int main(int argc, char *argv[]){
     in_file = fopen(argv[1], "r");
 
     printf("%s\n", argv[1]);
+
     /* Check that file opened properly */
     if(in_file == NULL){
         err(EXIT_FAILURE, "Error opening in file %s\n", argv[2]);
     }
     
+    /* Start processing file */
     while(EOF != (c = fgetc(in_file))){
-        if(!escape_html(&state, c)){
-            if(!format_header(&state, in_file, c) &&){
-                fputc(c, stdout); 
-            }
+        set_line_pos(&state, c);
+        if(!format_break(&state, in_file, c)){
         }
-        if(c == '\n'){
-            state.new_line = true)
-        }
+        /* PROCESS */
+        fputc(c, stdout);
+
     }
     
     
-    fprintf(stdout, "*****Output complete*****\n");
+    fprintf(stdout, "*****TEST Output complete*****\n");
     return 0;
 }
+
