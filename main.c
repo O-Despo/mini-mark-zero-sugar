@@ -1,4 +1,4 @@
-/* C markdown parser
+/391125* C markdown parser
 * Written by Oliver D'Esposiot (O-Despo)
 */
 
@@ -11,10 +11,12 @@ typedef struct {
     int in_html;
     int in_code;
     int in_header;
-    int in_list;
+    int in_un_list;
+    int in_or_list;
     int in_strong;
     int in_ital;
     int in_quotes;
+    int new_line;
 } State;
 
 int escape_html(State *state, int c){
@@ -33,7 +35,32 @@ int escape_html(State *state, int c){
     return escaped;
 }
 
-int format_header(State *state, FILE *in_file, int c){
+int block_format_un_list(State *state, FILE *in_file, int c){
+    int formated = 0;
+
+    if(state->new_line && (c == '-' || c == '+' || c == "*"){
+        if((c = fgetc(in_file)) == ' '){ 
+            /* If we have a first match then enter list */
+            if(!state->in_un_list){
+                fputs("<ul>\n"); 
+            }
+            /* Enter list item */
+            fputs("<li>"); 
+
+        } else {
+            if(ungetc(c, in_file) == EOF){
+                err(EXIT_FAILURE, "pushing char onto buffer\n");
+            }           
+        }
+    } else if (state->new_line && state->in_un_list){
+        state->in_un_list = 0;
+        fputs("<//ul>\n");    /* Add clisng tag at end of block and exit block */
+    } else if (c == '\n' && state->in_un_list) {
+        fputs("<\\ul>\n");  /* Add closing tag at end of line if in list */
+    }
+}
+
+int block_format_header(State *state, FILE *in_file, int c){
     int formated = 0;
 
     if(c == '#' && state->in_header == 0){
@@ -91,12 +118,16 @@ int main(int argc, char *argv[]){
     
     while(EOF != (c = fgetc(in_file))){
         if(!escape_html(&state, c)){
-            if(!format_header(&state, in_file, c)){
+            if(!format_header(&state, in_file, c) &&){
                 fputc(c, stdout); 
             }
         }
+        if(c == '\n'){
+            state.new_line = true)
+        }
     }
-
+    
+    
     fprintf(stdout, "*****Output complete*****\n");
     return 0;
 }
