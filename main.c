@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <err.h>
 
+
 typedef enum {B_NONE, HTML, HR, HEADER, UL_LIST, OR_LIST, B_CODE, P} Block;
 typedef enum {L_NONE, EMPHASIS, ODE} In_Line;
 typedef enum {START, MIDDLE, END} Line_Pos;
@@ -15,17 +16,105 @@ typedef struct {
     In_Line in_line;
     Line_Pos line_pos;
     Line_Pos last_pos;
+    int level; /* Used for open close tags */
 } State;
 
-short format_break(State *state, FILE *in_file, char c){
+void set_line_pos(State *state, char c);
+
+int format_break(State *state, FILE *in_file, char c){
     /* short format_break(State *state, FILE *in_file, char c)
      *
      * Two END charecters in a row then insert a blank line. Write to file.
      * On format reuturns 1. Dose not effect state.
      */
-    short formated = 0;
+    int formated = 0;
+
     if(state->line_pos == END && state->last_pos == END){
-        fputs("</br>", stdout);
+        fputs("</br>\n", stdout);
+        formated = 1;
+    }
+
+    return formated;
+}
+
+
+
+int format_html(State *state, FILE *in_file, char c){
+    /* int format_html(State *state, FILE *in_file, char c){
+     * If a html elm is matched than formatting is stoped until its close
+     *
+     * NOTE: This implementation will have a bug when the html has single line html elments 
+     * in it. It will set the level to low and make is so the html block is exited to soon
+     */
+    int formated = 0;
+
+    if(c == '<'){
+        state->level = 1;
+        formated = 1;
+
+        /* Check if this is a single tag */
+        fputc(c, stdout);
+        c = fgetc(in_file); /* TODO add EOF check */
+
+        if(c == '/'){ /* if a singel tag loop through until close */
+            state->level = 0;
+
+            fputc(c, stdout);
+
+            while(c != '>' && (c = fgetc(in_file)) != EOF){ 
+                fputc(c, stdout); 
+            }
+        } else {
+            /* If its multi tag then move through html until there are as many closing
+             * as opening tags */
+            fputc(c, stdout);
+
+            while(state->level != 0 && (c = fgetc(in_file)) != EOF) {
+                set_line_pos(state, c);
+                if (c == '<') {
+                    fputc(c, stdout);
+                    c = fgetc(in_file); /* TODO check for EOF */
+
+                    if (c == '/') {
+                        state->level--;
+                    } else {
+                        state->level++;
+                    }
+                    fputc(c, stdout);
+                } else {
+                    fputc(c, stdout);
+                }
+            }
+        }
+    }
+    
+    return formated;
+}
+
+int format_header(State *state, FILE *in_file, char c){
+    /* short format_header(State *state, FILE *in_file, char c){
+     *
+     * Formats headers modifyes state. Whole line operator.
+     * Uses level to track header level up to 6.
+     *
+     * Returns 1 if formating was done and no other block formattng
+     * should be run
+     */
+    int formated = 0;
+    if(c == '#'){
+        state->level = 1;
+        
+        while((c = fgetc(in_file)) == '#'){
+            state->level++;
+        }
+       
+        /* Max header level is 6 */
+        if(state->level >= 7){
+            state->level = 6;
+        }
+
+        state->block = HEADER;
+        fprintf(stdout, "<h%d>", state->level);
         formated = 1;
     }
 
@@ -52,11 +141,22 @@ void set_line_pos(State *state, char c){
     }
 }
 
+short close_blocks(State *state){
+    short closed = 0;
+    if(state->block == B_NONE){
+        fputs("</p>", stdout);
+        closed = 1;
+    } else if (state->block == HEADER){
+        fprintf(stdout, "</h%d>", state->level);
+        closed = 1;
+    }
+    return closed;
+}
 int main(int argc, char *argv[]){
     int c;
     FILE *in_file;
-    State state = {B_NONE, L_NONE, END, END}; /* Set the frist line to line start */
-    
+    State state = {B_NONE, L_NONE, END, END, 0}; /* Set the frist line to line start */
+   
     /* Check for correct number of argumnets */
     if(argc != 2){
         errx(EXIT_FAILURE, "Incorrect number of arguments got %d expexted 1\n", argc - 1);
@@ -74,11 +174,26 @@ int main(int argc, char *argv[]){
     /* Start processing file */
     while(EOF != (c = fgetc(in_file))){
         set_line_pos(&state, c);
-        if(!format_break(&state, in_file, c)){
+        
+        if(!format_break(&state, in_file, c)){ /* if not blank line */
+            if(state.line_pos == START){ /* If start check for blocks */
+                state.block = B_NONE;
+                if(!(
+                    format_header(&state, in_file, c) || 
+                    format_html(&state, in_file, c)
+                    )){
+
+                    fputs("<p>", stdout);
+                    fputc(c, stdout);
+                }
+            } else if (state.line_pos == END){ /* If end check for closing blocks */
+                close_blocks(&state);
+                fputc(c, stdout);
+            } else {
+                fputc(c, stdout);
+            }
         }
         /* PROCESS */
-        fputc(c, stdout);
-
     }
     
     
