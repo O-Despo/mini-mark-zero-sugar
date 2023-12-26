@@ -7,7 +7,7 @@
 #include <err.h>
 
 typedef enum {B_NONE, HTML, HR, HEADER, UL_LIST, OR_LIST, B_CODE, P} Block;
-typedef enum {L_NONE, EMPHASIS, ODE} In_Line;
+typedef enum {L_NONE, EMPHASIS, BOLD, I_CODE, LINK} In_Line;
 typedef enum {START, MIDDLE, END} Line_Pos;
 
 typedef struct {
@@ -53,10 +53,8 @@ int format_html(State *state, FILE *in_file, char c){
         fputc(c, stdout);
         c = fgetc(in_file); /* TODO add EOF check */
 
-        if(c == '/'){ /* if a singel tag loop through until close */
+        if(c == '<'){ /* Special espcae for single tags*/
             state->level = 0;
-
-            fputc(c, stdout);
 
             while(c != '>' && (c = fgetc(in_file)) != EOF){ 
                 fputc(c, stdout); 
@@ -247,6 +245,7 @@ int format_ol_list(State *state, FILE *in_file, char c){
 
     return formated;
 }
+
 void set_line_pos(State *state, char c){
     /* short set_line_pos(State *state, char c)
      *
@@ -267,9 +266,86 @@ void set_line_pos(State *state, char c){
     }
 }
 
+short in_line_emphasis(State *state, FILE *in_file, char c){ /* MUST COME AFTER BOLD */
+    short formated = 0;
 
+    if (c == '*' || c == '_'){
+        formated = 1;           
+        c = fgetc(in_file);
+        if(c == '*' || c == '_'){
+             if (state->in_line == BOLD) {
+                fputs("</strong>", stdout);
+                state->in_line = L_NONE;
+            } else if (state->in_line == L_NONE) {
+                fputs("<strong>", stdout);
+                state->in_line = BOLD;
+            }
+        } else {
+            ungetc(c, in_file);
+
+            if (state->in_line == EMPHASIS) {
+                fputs("</em>", stdout);
+                state->in_line = L_NONE;
+            } else if (state->in_line == L_NONE) {
+                fputs("<em>", stdout);
+                state->in_line = EMPHASIS;
+            }
+        }
+    }
+
+    return formated;
+}
+
+short in_line_code(State *state, FILE *in_file, char c){ /* MUST COME AFTER BOLD */
+    short formated = 0;
+
+    if (c == '`'){
+        formated = 1;
+        if(state->in_line == I_CODE) {
+            fputs("</code>", stdout);
+            state->in_line = L_NONE;
+        } else if (state->in_line == L_NONE) {
+            fputs("<code>", stdout); 
+            state->in_line = I_CODE;
+        }
+    }
+    
+    return formated;
+}
+
+short in_line_link(State *state, FILE *in_file, char c){
+    short formated = 0;
+    
+    if (c == '[') {
+        fputs("<a href=\"", stdout);
+        while ((c = fgetc(in_file)) != EOF && c != ']') {
+            fputc(c, stdout);
+        }
+
+        if (c == EOF){ /* TODO: do this everywhere */
+            printf("ERR: EOF before link close\n");
+        }
+        
+        fputs("\">", stdout);
+        c = fgetc(in_file);
+
+        if(c == '('){
+            while ((c = fgetc(in_file)) != EOF && c != ')') {
+                fputc(c, stdout);
+            }                 
+            
+            fputs("</a>", stdout);
+        } else {
+            printf("ERR: Linke with no '(' got '%c'\n", c);
+            fputs("</a>", stdout);
+        }
+        formated = 1;
+    }
+    return formated;
+}
 short close_blocks(State *state){
     short closed = 0;
+
     if(state->block == B_NONE){
         fputs("</p>", stdout);
         closed = 1;
@@ -282,6 +358,24 @@ short close_blocks(State *state){
         fputs("</li>", stdout);
         closed = 1;
     }
+
+    return closed;
+}
+
+short close_in_lines(State *state){
+    short closed = 0;
+
+    if(state->in_line == L_NONE){
+       closed = 1; 
+    } else if (state->in_line == EMPHASIS){
+        fputs("</em>", stdout);  
+    } else if (state->in_line == LINK){
+        fputs("</a>", stdout);  
+    } else if (state->in_line == I_CODE){
+        fputs("<code></pre>", stdout);  
+    }
+
+    state->in_line = L_NONE; /* in lines do not conute after end of line */
     return closed;
 }
 
@@ -310,24 +404,34 @@ int main(int argc, char *argv[]){
         
         if(!format_break(&state, in_file, c)){ /* if not blank line */
             if(state.line_pos == START){ /* If start check for blocks */
-                if(!(
+                if (!(
                     format_hr(&state, in_file, c)      ||
                     format_header(&state, in_file, c)  || 
                     format_html(&state, in_file, c)    ||
                     format_ul_list(&state, in_file, c) ||
                     format_ol_list(&state, in_file, c) ||
                     format_code(&state, in_file, c)
-                    )){
-
+                    )) {
                     state.block = B_NONE;
                     fputs("<p>", stdout);
-                    fputc(c, stdout);
+                    if(!(
+                        in_line_emphasis(&state, in_file, c) ||
+                        in_line_code(&state, in_file, c)     ||
+                        in_line_link(&state, in_file, c))) {
+                        fputc(c, stdout);
+                    }
                 }
             } else if (state.line_pos == END){ /* If end check for closing blocks */
                 close_blocks(&state);
+                close_in_lines(&state);
                 fputc(c, stdout);
             } else {
-                fputc(c, stdout);
+                    if(!(
+                        in_line_emphasis(&state, in_file, c) ||
+                        in_line_code(&state, in_file, c)     ||
+                        in_line_link(&state, in_file, c))) {
+                    fputc(c, stdout);
+                }
             }
         }
     }
