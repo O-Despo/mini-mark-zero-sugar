@@ -180,6 +180,73 @@ int format_hr(State *state, FILE *in_file, char c){
 
     return formated;
 }
+
+int format_ul_list(State *state, FILE *in_file, char c){
+    int formated = 0;
+    if (c == '*' || c == '+' || c == '-') {
+        c = fgetc(in_file);
+
+        if (c == ' ') {
+            formated = 1;
+
+            if (state->block != UL_LIST){
+                fputs("<ul>\n", stdout);
+            }
+            state->block = UL_LIST;
+
+            fputs("<li>", stdout);
+        } else if (state->block == UL_LIST) { /* if in UL but not matched close list */
+            state->block = B_NONE;
+            fputs("</ul>\n", stdout);
+            ungetc(c, in_file);
+        } else {
+            ungetc(c, in_file);
+        }
+    } else if (state->block == UL_LIST){ /* if in UL but not matched close list */
+        state->block = B_NONE;
+        fputs("</ul>\n", stdout);
+    }
+
+    return formated;
+}
+
+int format_ol_list(State *state, FILE *in_file, char c){
+    int formated = 0;
+    if (c == '0' ||
+        c == '1' || 
+        c == '2' || 
+        c == '3' ||
+        c == '4' ||
+        c == '5' ||
+        c == '6' ||
+        c == '7' || 
+        c == '8' ||
+        c == '9') {
+        c = fgetc(in_file);
+
+        if (c == '.') {
+            formated = 1;
+
+            if (state->block != OR_LIST){
+                fputs("<ol>\n", stdout);
+            }
+            state->block = OR_LIST;
+
+            fputs("<li>", stdout);
+        } else if (state->block == OR_LIST) { /* if in UL but not matched close list */
+            state->block = B_NONE;
+            fputs("</ol>\n", stdout);
+            ungetc(c, in_file);
+        } else {
+            ungetc(c, in_file);
+        }
+    } else if (state->block == OR_LIST){ /* if in UL but not matched close list */
+        state->block = B_NONE;
+        fputs("</ol>\n", stdout);
+    }
+
+    return formated;
+}
 void set_line_pos(State *state, char c){
     /* short set_line_pos(State *state, char c)
      *
@@ -211,6 +278,9 @@ short close_blocks(State *state){
         closed = 1;
     } else if (state->block == HR) {
         closed = 1;
+    } else if (state->block == UL_LIST) {
+        fputs("</li>", stdout);
+        closed = 1;
     }
     return closed;
 }
@@ -240,14 +310,16 @@ int main(int argc, char *argv[]){
         
         if(!format_break(&state, in_file, c)){ /* if not blank line */
             if(state.line_pos == START){ /* If start check for blocks */
-                state.block = B_NONE;
                 if(!(
-                    format_hr(&state, in_file, c)     ||
-                    format_header(&state, in_file, c) || 
-                    format_html(&state, in_file, c)   ||
+                    format_hr(&state, in_file, c)      ||
+                    format_header(&state, in_file, c)  || 
+                    format_html(&state, in_file, c)    ||
+                    format_ul_list(&state, in_file, c) ||
+                    format_ol_list(&state, in_file, c) ||
                     format_code(&state, in_file, c)
                     )){
 
+                    state.block = B_NONE;
                     fputs("<p>", stdout);
                     fputc(c, stdout);
                 }
