@@ -6,7 +6,6 @@
 #include <stdbool.h>
 #include <err.h>
 
-
 typedef enum {B_NONE, HTML, HR, HEADER, UL_LIST, OR_LIST, B_CODE, P} Block;
 typedef enum {L_NONE, EMPHASIS, ODE} In_Line;
 typedef enum {START, MIDDLE, END} Line_Pos;
@@ -36,8 +35,6 @@ int format_break(State *state, FILE *in_file, char c){
 
     return formated;
 }
-
-
 
 int format_html(State *state, FILE *in_file, char c){
     /* int format_html(State *state, FILE *in_file, char c){
@@ -84,10 +81,48 @@ int format_html(State *state, FILE *in_file, char c){
                 } else {
                     fputc(c, stdout);
                 }
-            }
+            } 
         }
     }
     
+    return formated;
+}
+
+int format_code(State *state, FILE *in_file, char c){
+    int formated = 0;
+    if(c == '`'){
+        state->level = 1;
+        while((c = fgetc(in_file)) != EOF && c == '`'){
+            state->level++;
+        }
+
+        if(state->level != 3){ /* if not 3 repalce ' and leave */
+            for(;state->level > 0; state->level--){
+                fputc('`', stdout);  
+            }
+            fputc(c, stdout);
+
+        } else {
+            state->block = B_CODE;
+            formated = 1;
+            state->level = 0;
+
+            fputs("<pre><code>", stdout);
+            fputc(c, stdout);
+
+            while(state->level != 3 && (c = fgetc(in_file)) != EOF){
+                if(c == '`'){
+                    state->level++;
+                } else {
+                    state->level = 0;
+                    fputc(c, stdout);
+                }
+            }
+
+            fputs("</pre></code>", stdout);
+        }
+    }
+
     return formated;
 }
 
@@ -121,6 +156,30 @@ int format_header(State *state, FILE *in_file, char c){
     return formated;
 }
 
+int format_hr(State *state, FILE *in_file, char c){
+    int formated = 0;
+    if(c == '*'){
+        /* NOTE: I kinda like this structure by checking a char and then ungeting if not
+         * I can pretty much use the c in the main function as a 1 charater buffer */
+        c = fgetc(in_file); /* TODO: Acount for EOF */
+    
+        if (c == '*') {
+            fputs("<hr />", stdout); 
+            
+            while ((c = fgetc(in_file)) != EOF && c != '\n') {};
+
+            if (c == '\n') {
+                ungetc(c, in_file);
+            }
+            formated = 1;
+            state->block = HR;
+        } else {
+            ungetc(c, in_file); /* TODO: Acount for error */
+        }
+    }
+
+    return formated;
+}
 void set_line_pos(State *state, char c){
     /* short set_line_pos(State *state, char c)
      *
@@ -141,6 +200,7 @@ void set_line_pos(State *state, char c){
     }
 }
 
+
 short close_blocks(State *state){
     short closed = 0;
     if(state->block == B_NONE){
@@ -149,9 +209,12 @@ short close_blocks(State *state){
     } else if (state->block == HEADER){
         fprintf(stdout, "</h%d>", state->level);
         closed = 1;
+    } else if (state->block == HR) {
+        closed = 1;
     }
     return closed;
 }
+
 int main(int argc, char *argv[]){
     int c;
     FILE *in_file;
@@ -179,8 +242,10 @@ int main(int argc, char *argv[]){
             if(state.line_pos == START){ /* If start check for blocks */
                 state.block = B_NONE;
                 if(!(
+                    format_hr(&state, in_file, c)     ||
                     format_header(&state, in_file, c) || 
-                    format_html(&state, in_file, c)
+                    format_html(&state, in_file, c)   ||
+                    format_code(&state, in_file, c)
                     )){
 
                     fputs("<p>", stdout);
@@ -193,11 +258,8 @@ int main(int argc, char *argv[]){
                 fputc(c, stdout);
             }
         }
-        /* PROCESS */
     }
-    
     
     fprintf(stdout, "*****TEST Output complete*****\n");
     return 0;
 }
-
