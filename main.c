@@ -313,6 +313,18 @@ short in_line_code(State *state, FILE *in_file, char c){ /* MUST COME AFTER BOLD
     return formated;
 }
 
+short escape(State *state, FILE *in_file, char c){
+    short escaped = 0;
+
+    if (c == '\\') {
+        escaped = 1;
+        c = fgetc(in_file);
+        fputc(c, in_file);
+    }
+
+    return escaped;
+}
+
 short in_line_link(State *state, FILE *in_file, char c){
     short formated = 0;
 
@@ -363,6 +375,7 @@ short close_blocks(State *state){
     return closed;
 }
 
+
 short close_in_lines(State *state){
     short closed = 0;
 
@@ -373,7 +386,7 @@ short close_in_lines(State *state){
     } else if (state->in_line == LINK){
         fputs("</a>", stdout);  
     } else if (state->in_line == I_CODE){
-        fputs("<code></pre>", stdout);  
+        fputs("</code></pre>", stdout);  
     }
 
     state->in_line = L_NONE; /* in lines do not conute after end of line */
@@ -406,12 +419,12 @@ int main(int argc, char *argv[]){
         if(!format_break(&state, in_file, c)){ /* if not blank line */
             if(state.line_pos == START){ /* If start check for blocks */
                 if (!(
-                            format_hr(&state, in_file, c)      ||
-                            format_header(&state, in_file, c)  || 
-                            format_html(&state, in_file, c)    ||
-                            format_ul_list(&state, in_file, c) ||
                             format_ol_list(&state, in_file, c) ||
-                            format_code(&state, in_file, c)
+                            format_ul_list(&state, in_file, c) ||
+                            format_html(&state, in_file, c)    ||
+                            format_code(&state, in_file, c)    ||
+                            format_header(&state, in_file, c)  || 
+                            format_hr(&state, in_file, c)      ||
                      )) {
                     state.block = B_NONE;
                     fputs("<p>", stdout);
