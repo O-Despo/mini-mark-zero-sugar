@@ -7,7 +7,7 @@
 #include <stdbool.h>
 #include <err.h>
 
-typedef enum {P, HTML, HR, HEADER, UL_LIST, OR_LIST, B_CODE} Block;
+typedef enum {B_NONE, P, HTML, HR, HEADER, UL_LIST, OR_LIST, B_CODE} Block;
 typedef enum {L_NONE, EMPHASIS, BOLD, I_CODE, LINK} In_Line;
 typedef enum {START, MIDDLE, END} Line_Pos;
 
@@ -56,7 +56,7 @@ short format_break(State *state, FILE *in_file, char c){
     short formated = 0;
 
     if(c == '='){
-        fputs("</br>\n", stdout);
+        fputs("</br>", stdout);
         formated = 1;
     }
 
@@ -72,6 +72,7 @@ short format_html(State *state, FILE *in_file, char c){
     if(c == '<'){
         state->level = 1;
         formated = 1;
+        state->block = HTML;
 
         fputc(c, stdout);
         c = m_fgetc(state, in_file, c);
@@ -90,7 +91,7 @@ short format_html(State *state, FILE *in_file, char c){
                 
                 if (c == '<') {
                     fputc(c, stdout);
-                    c = m_fgetc(state, in_file, c); /* TODO check for EOF */
+                    c = m_fgetc(state, in_file, c);
                     
                     if (c == '/') {
                         state->level--;
@@ -184,23 +185,21 @@ int format_hr(State *state, FILE *in_file, char c){
     if(c == '*'){
         /* NOTE: I kinda like this structure by checking a char and then ungeting if not
          * I can pretty much use the c in the main function as a 1 charater buffer */
-        c = m_fgetc(state, in_file, c); /* TODO: Acount for EOF */
+        c = m_fgetc(state, in_file, c);
         
-
         if (c == '*') {
-            fputs("<hr />", stdout); 
+            fputs("<hr/>", stdout); 
 
-            while ((c = m_fgetc(state, in_file, c)) != EOF && c != '\n') {
-                
-            };
+            while ((c = m_fgetc(state, in_file, c)) != EOF && c != '\n') {};
 
             if (c == '\n') {
                 m_ungetc(state, in_file, c);
             }
+
             formated = 1;
             state->block = HR;
         } else {
-            m_ungetc(state, in_file, c); /* TODO: Acount for error */
+            m_ungetc(state, in_file, c);
         }
     }
 
@@ -223,7 +222,7 @@ int format_ul_list(State *state, FILE *in_file, char c){
 
             fputs("<li>", stdout);
         } else if (state->block == UL_LIST) { /* if in UL but not matched close list */
-            state->block = P;
+            state->block = B_NONE;
             fputs("</ul>\n", stdout);
 
             m_ungetc(state, in_file, c);
@@ -231,7 +230,7 @@ int format_ul_list(State *state, FILE *in_file, char c){
             m_ungetc(state, in_file, c);
         }
     } else if (state->block == UL_LIST){ /* if in UL but not matched close list */
-        state->block = P;
+        state->block = B_NONE;
         fputs("</ul>\n", stdout);
     }
 
@@ -255,7 +254,7 @@ int format_ol_list(State *state, FILE *in_file, char c){
 
             fputs("<li>", stdout);
         } else if (state->block == OR_LIST) { /* if in UL but not matched close list */
-            state->block = P;
+            state->block = B_NONE;
             fputs("</ol>\n", stdout);
 
             m_ungetc(state, in_file, c);
@@ -263,7 +262,7 @@ int format_ol_list(State *state, FILE *in_file, char c){
             m_ungetc(state, in_file, c);
         }
     } else if (state->block == OR_LIST){ /* if in UL but not matched close list */
-        state->block = P;
+        state->block = B_NONE;
         fputs("</ol>\n", stdout);
     }
 
@@ -349,8 +348,8 @@ short in_line_link(State *state, FILE *in_file, char c){
 
     if (c == '[') {
         fputs("<a href=\"", stdout);
+
         while ((c = m_fgetc(state, in_file, c)) != EOF && c != ']') {
-            
             fputc(c, stdout);
         }
 
@@ -417,7 +416,7 @@ short close_in_lines(State *state){
 int main(int argc, char *argv[]){
     int c;
     FILE *in_file;
-    State state = {P, L_NONE, 1, 1, 1, 0}; /* Set the frist line to line start */
+    State state = {P, L_NONE, 1, 0, 1, 0}; /* Set the frist line to line start */
 
     /* Check for correct number of argumnets */
     if(argc != 2){
@@ -433,13 +432,13 @@ int main(int argc, char *argv[]){
 
     /* Start processing file */
     while(EOF != (c = m_fgetc(&state, in_file, c))){
-
         if (c == '\n') {
-            close_blocks(&state);
-            close_in_lines(&state);
+            if (state.last_col != 0) {
+                close_blocks(&state);
+                close_in_lines(&state);
 
             fputc(c, stdout);
-
+            }
         } else if (state.col == 1) {
             if (!(
                 format_break(&state, in_file, c)   ||
@@ -449,7 +448,6 @@ int main(int argc, char *argv[]){
                 format_code(&state, in_file, c)    ||
                 format_header(&state, in_file, c)  || 
                 format_hr(&state, in_file, c))) {
-
                 state.block = P;
                 fputs("<p>", stdout);
 
