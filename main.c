@@ -7,7 +7,7 @@
 #include <stdbool.h>
 #include <err.h>
 
-typedef enum {B_NONE, HTML, HR, HEADER, UL_LIST, OR_LIST, B_CODE, P} Block;
+typedef enum {P, HTML, HR, HEADER, UL_LIST, OR_LIST, B_CODE} Block;
 typedef enum {L_NONE, EMPHASIS, BOLD, I_CODE, LINK} In_Line;
 typedef enum {START, MIDDLE, END} Line_Pos;
 
@@ -26,7 +26,7 @@ int m_fgetc(State *state, FILE *in_file, int c){
     if(c == '\n'){
         state->line++;
         state->last_col = state->col;
-        state->col = 1;
+        state->col = 0;
     } else if (c != EOF){
         state->col++;
     }
@@ -237,7 +237,7 @@ int format_ul_list(State *state, FILE *in_file, char c){
 
             fputs("<li>", stdout);
         } else if (state->block == UL_LIST) { /* if in UL but not matched close list */
-            state->block = B_NONE;
+            state->block = P;
             fputs("</ul>\n", stdout);
 
             m_ungetc(state, in_file, c);
@@ -245,7 +245,7 @@ int format_ul_list(State *state, FILE *in_file, char c){
             m_ungetc(state, in_file, c);
         }
     } else if (state->block == UL_LIST){ /* if in UL but not matched close list */
-        state->block = B_NONE;
+        state->block = P;
         fputs("</ul>\n", stdout);
     }
 
@@ -269,7 +269,7 @@ int format_ol_list(State *state, FILE *in_file, char c){
 
             fputs("<li>", stdout);
         } else if (state->block == OR_LIST) { /* if in UL but not matched close list */
-            state->block = B_NONE;
+            state->block = P;
             fputs("</ol>\n", stdout);
 
             m_ungetc(state, in_file, c);
@@ -277,7 +277,7 @@ int format_ol_list(State *state, FILE *in_file, char c){
             m_ungetc(state, in_file, c);
         }
     } else if (state->block == OR_LIST){ /* if in UL but not matched close list */
-        state->block = B_NONE;
+        state->block = P;
         fputs("</ol>\n", stdout);
     }
 
@@ -396,7 +396,7 @@ short in_line_link(State *state, FILE *in_file, char c){
 short close_blocks(State *state){
     short closed = 0;
 
-    if(state->block == B_NONE){
+    if(state->block == P){
         fputs("</p>", stdout);
         closed = 1;
     } else if (state->block == HEADER){
@@ -435,7 +435,7 @@ short close_in_lines(State *state){
 int main(int argc, char *argv[]){
     int c;
     FILE *in_file;
-    State state = {B_NONE, L_NONE, 1, 1, 1, 0}; /* Set the frist line to line start */
+    State state = {P, L_NONE, 1, 1, 1, 0}; /* Set the frist line to line start */
 
     /* Check for correct number of argumnets */
     if(argc != 2){
@@ -444,24 +444,18 @@ int main(int argc, char *argv[]){
 
     in_file = fopen(argv[1], "r");
 
-    printf("%s\n", argv[1]);
-
     /* Check that file opened properly */
     if(in_file == NULL){
         err(EXIT_FAILURE, "Error opening in file %s\n", argv[2]);
     }
 
     /* Start processing file */
-    while(EOF != (c = getc(in_file))){
+    while(EOF != (c = m_fgetc(&state, in_file, c))){
         if(c == '\n'){
             close_blocks(&state);
             close_in_lines(&state);
 
             fputc(c, stdout);
-
-            state.line++;
-            state.last_col = state.col;
-            state.col = 1;
         } else if (state.col == 1) {
             if (!(
                 format_break(&state, in_file, c)   ||
@@ -472,7 +466,7 @@ int main(int argc, char *argv[]){
                 format_header(&state, in_file, c)  || 
                 format_hr(&state, in_file, c))) {
 
-                state.block = B_NONE;
+                state.block = P;
                 fputs("<p>", stdout);
 
                 if(!(
@@ -483,14 +477,12 @@ int main(int argc, char *argv[]){
                     fputc(c, stdout);
                 }
             }
-            state.col++;
         } else {
             if(!(
                 in_line_emphasis(&state, in_file, c) ||
                 in_line_code(&state, in_file, c)     ||
                 in_line_link(&state, in_file, c))) {
                 fputc(c, stdout);
-                state.col++;
             }
         }
     }
