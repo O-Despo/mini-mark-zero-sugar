@@ -51,7 +51,6 @@ int m_ungetc(State *state, FILE *in_file, int c){
 
 short format_break(State *state, FILE *in_file, char c){
     /* short format_break(State *state, FILE *in_file, char c)
-     *
      */
     short formated = 0;
 
@@ -87,7 +86,7 @@ short format_html(State *state, FILE *in_file, char c){
              * as opening tags */
             fputc(c, stdout);
 
-            while(state->level != 0 && (c = m_fgetc(state, in_file, c)) != EOF) {
+            while (state->level != 0 && (c = m_fgetc(state, in_file, c)) != EOF) {
                 
                 if (c == '<') {
                     fputc(c, stdout);
@@ -113,28 +112,17 @@ short format_html(State *state, FILE *in_file, char c){
 int format_code(State *state, FILE *in_file, char c){
     int formated = 0;
     if(c == '`'){
-        state->level = 1;
-        while((c = m_fgetc(state, in_file, c)) != EOF && c == '`'){
-            
-            state->level++;
-        }
-
-        if(state->level != 3){ /* if not 3 repalce ' and leave */
-            for(;state->level > 0; state->level--){
-                fputc('`', stdout);  
-            }
-            fputc(c, stdout);
-
-        } else {
+        c = m_fgetc(state, in_file, c);
+        
+        if(c == '`'){
             state->block = B_CODE;
             formated = 1;
-            state->level = 0;
 
             fputs("<pre><code>", stdout);
             fputc(c, stdout);
-
+            
+            state->level = 0;
             while(state->level != 3 && (c = m_fgetc(state, in_file, c)) != EOF){
-                
                 if(c == '`'){
                     state->level++;
                 } else {
@@ -432,13 +420,10 @@ int main(int argc, char *argv[]){
 
     /* Start processing file */
     while(EOF != (c = m_fgetc(&state, in_file, c))){
-        if (c == '\n') {
-            if (state.last_col != 0) {
-                close_blocks(&state);
-                close_in_lines(&state);
-
+        if (c == '\n' && state.last_col != 0) {
+            close_blocks(&state);
+            close_in_lines(&state);
             fputc(c, stdout);
-            }
         } else if (state.col == 1) {
             if (!(
                 format_break(&state, in_file, c)   ||
@@ -459,7 +444,7 @@ int main(int argc, char *argv[]){
                     fputc(c, stdout);
                 }
             }
-        } else {
+        } else if (c != '\n'){
             if (!(
                 in_line_emphasis(&state, in_file, c) ||
                 in_line_code(&state, in_file, c)     ||
@@ -470,6 +455,5 @@ int main(int argc, char *argv[]){
     }
 
     fclose(in_file);
-
     return 0;
 }
