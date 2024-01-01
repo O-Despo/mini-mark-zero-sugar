@@ -14,12 +14,32 @@ typedef enum {START, MIDDLE, END} Line_Pos;
 typedef struct {
     Block block;
     In_Line in_line;
-    Line_Pos line_pos;
-    Line_Pos last_pos;
+    int line;
+    int col;
+    int last_col;
     int level; /* Used for open close tags */
 } State;
 
-void set_line_pos(State *state, char c);
+void setpos(State *state, char c){
+    return;
+    if(c == '\n'){
+        state->line++;
+        state->last_col = state->col;
+        state->col = 1;
+    } else {
+        state->col++;
+    }
+}
+
+void un_setpos(State *state, char c){
+    return;
+    if(c == '\n'){
+        state->line--;
+        state->col = state->last_col; /* I only use ungetc once so I onlt need one item of mem */
+    } else {
+        state->col--;
+    }
+}
 
 int format_break(State *state, FILE *in_file, char c){
     /* short format_break(State *state, FILE *in_file, char c)
@@ -29,7 +49,7 @@ int format_break(State *state, FILE *in_file, char c){
      */
     int formated = 0;
 
-    if(state->line_pos == END && state->last_pos == END){
+    if(c == '='){
         fputs("</br>\n", stdout);
         formated = 1;
     }
@@ -53,17 +73,23 @@ int format_html(State *state, FILE *in_file, char c){
         /* Check if this is a single tag */
         fputc(c, stdout);
         c = fgetc(in_file); /* TODO add EOF check */
+        setpos(state, c);
+        
 
         if(c == '<'){ /* Special espcae for single tags*/
             c = fgetc(in_file);
+            setpos(state, c);
+
             if(c == '<'){
                 state->level = 0;
 
                 while(c != '>' && (c = fgetc(in_file)) != EOF){ 
+                    setpos(state, c);
                     fputc(c, stdout); 
                 }               
             } else {
                 ungetc(c, in_file);
+                un_setpos(state, c);
             }
         } else {
             /* If its multi tag then move through html until there are as many closing
@@ -71,12 +97,12 @@ int format_html(State *state, FILE *in_file, char c){
             fputc(c, stdout);
 
             while(state->level != 0 && (c = fgetc(in_file)) != EOF) {
-                set_line_pos(state, c);
+                setpos(state, c);
                 if (c == '<') {
                     fputc(c, stdout);
                     c = fgetc(in_file); /* TODO check for EOF */
+                    setpos(state, c);
                     if(c == '<'){
-                        
                     } else if (c == '/') {
                         state->level--;
                         fputc(c, stdout);
@@ -99,6 +125,7 @@ int format_code(State *state, FILE *in_file, char c){
     if(c == '`'){
         state->level = 1;
         while((c = fgetc(in_file)) != EOF && c == '`'){
+            setpos(state, c);
             state->level++;
         }
 
@@ -117,6 +144,7 @@ int format_code(State *state, FILE *in_file, char c){
             fputc(c, stdout);
 
             while(state->level != 3 && (c = fgetc(in_file)) != EOF){
+                setpos(state, c);
                 if(c == '`'){
                     state->level++;
                 } else {
@@ -146,6 +174,7 @@ int format_header(State *state, FILE *in_file, char c){
         state->level = 1;
 
         while((c = fgetc(in_file)) == '#'){
+            setpos(state, c);
             state->level++;
         }
 
@@ -168,19 +197,24 @@ int format_hr(State *state, FILE *in_file, char c){
         /* NOTE: I kinda like this structure by checking a char and then ungeting if not
          * I can pretty much use the c in the main function as a 1 charater buffer */
         c = fgetc(in_file); /* TODO: Acount for EOF */
+        setpos(state, c);
 
         if (c == '*') {
             fputs("<hr />", stdout); 
 
-            while ((c = fgetc(in_file)) != EOF && c != '\n') {};
+            while ((c = fgetc(in_file)) != EOF && c != '\n') {
+                setpos(state, c);
+            };
 
             if (c == '\n') {
                 ungetc(c, in_file);
+                un_setpos(state, c);
             }
             formated = 1;
             state->block = HR;
         } else {
             ungetc(c, in_file); /* TODO: Acount for error */
+            un_setpos(state, c);
         }
     }
 
@@ -191,6 +225,7 @@ int format_ul_list(State *state, FILE *in_file, char c){
     int formated = 0;
     if (c == '*' || c == '+' || c == '-') {
         c = fgetc(in_file);
+        setpos(state, c);
 
         if (c == ' ') {
             formated = 1;
@@ -204,9 +239,12 @@ int format_ul_list(State *state, FILE *in_file, char c){
         } else if (state->block == UL_LIST) { /* if in UL but not matched close list */
             state->block = B_NONE;
             fputs("</ul>\n", stdout);
+
             ungetc(c, in_file);
+            un_setpos(state, c);
         } else {
             ungetc(c, in_file);
+            un_setpos(state, c);
         }
     } else if (state->block == UL_LIST){ /* if in UL but not matched close list */
         state->block = B_NONE;
@@ -221,6 +259,7 @@ int format_ol_list(State *state, FILE *in_file, char c){
     if (c == '0' || c == '1' || c == '2' || c == '3' || c == '4' ||
             c == '5' || c == '6' || c == '7' || c == '8' || c == '9') {
         c = fgetc(in_file);
+        setpos(state, c);
 
         if (c == '.') {
             formated = 1;
@@ -234,9 +273,12 @@ int format_ol_list(State *state, FILE *in_file, char c){
         } else if (state->block == OR_LIST) { /* if in UL but not matched close list */
             state->block = B_NONE;
             fputs("</ol>\n", stdout);
+
             ungetc(c, in_file);
+            un_setpos(state, c);
         } else {
             ungetc(c, in_file);
+            un_setpos(state, c);
         }
     } else if (state->block == OR_LIST){ /* if in UL but not matched close list */
         state->block = B_NONE;
@@ -246,32 +288,14 @@ int format_ol_list(State *state, FILE *in_file, char c){
     return formated;
 }
 
-void set_line_pos(State *state, char c){
-    /* short set_line_pos(State *state, char c)
-     *
-     * Sets the current line position and the last pos. Mods state.
-     * Dose not write to output. Dose not return value.
-     * If `\n` the set END. If END set START. If START and not `\n` set MIDDLE.
-     * When POS is set save last POS.
-     */
-    if(c == '\n'){
-        state->last_pos = state->line_pos;
-        state->line_pos = END;    
-    } else if (state->line_pos == END) {
-        state->last_pos = state->line_pos;
-        state->line_pos = START;
-    } else if (state->line_pos == START) {
-        state->last_pos = state->line_pos;
-        state->line_pos = MIDDLE; 
-    }
-}
-
 short in_line_emphasis(State *state, FILE *in_file, char c){ /* MUST COME AFTER BOLD */
     short formated = 0;
 
     if (c == '*' || c == '_'){
         formated = 1;           
         c = fgetc(in_file);
+        setpos(state, c);
+
         if(c == '*' || c == '_'){
             if (state->in_line == BOLD) {
                 fputs("</strong>", stdout);
@@ -282,6 +306,7 @@ short in_line_emphasis(State *state, FILE *in_file, char c){ /* MUST COME AFTER 
             }
         } else {
             ungetc(c, in_file);
+            un_setpos(state, c);
 
             if (state->in_line == EMPHASIS) {
                 fputs("</em>", stdout);
@@ -319,6 +344,20 @@ short escape(State *state, FILE *in_file, char c){
     if (c == '\\') {
         escaped = 1;
         c = fgetc(in_file);
+        setpos(state, c);
+        fputc(c, in_file);
+    }
+
+    return escaped;
+}
+
+short format_line_break(State *state, FILE *in_file, char c){
+    short escaped = 0;
+
+    if (c == '\\') {
+        escaped = 1;
+        c = fgetc(in_file);
+        setpos(state, c);
         fputc(c, in_file);
     }
 
@@ -331,6 +370,7 @@ short in_line_link(State *state, FILE *in_file, char c){
     if (c == '[') {
         fputs("<a href=\"", stdout);
         while ((c = fgetc(in_file)) != EOF && c != ']') {
+            setpos(state, c);
             fputc(c, stdout);
         }
 
@@ -340,9 +380,11 @@ short in_line_link(State *state, FILE *in_file, char c){
 
         fputs("\">", stdout);
         c = fgetc(in_file);
-
+        setpos(state, c);
+        
         if(c == '('){
             while ((c = fgetc(in_file)) != EOF && c != ')') {
+                setpos(state, c);
                 fputc(c, stdout);
             }                 
 
@@ -383,8 +425,10 @@ short close_in_lines(State *state){
         closed = 1; 
     } else if (state->in_line == EMPHASIS){
         fputs("</em>", stdout);  
+    } else if (state->in_line == BOLD) {
+        fputs("</strong>", stdout);  
     } else if (state->in_line == LINK){
-        fputs("</a>", stdout);  
+        fputs("</a>", stdout);
     } else if (state->in_line == I_CODE){
         fputs("</code></pre>", stdout);  
     }
@@ -396,7 +440,7 @@ short close_in_lines(State *state){
 int main(int argc, char *argv[]){
     int c;
     FILE *in_file;
-    State state = {B_NONE, L_NONE, END, END, 0}; /* Set the frist line to line start */
+    State state = {B_NONE, L_NONE, 1, 1, 1, 0}; /* Set the frist line to line start */
 
     /* Check for correct number of argumnets */
     if(argc != 2){
@@ -414,38 +458,44 @@ int main(int argc, char *argv[]){
 
     /* Start processing file */
     while(EOF != (c = fgetc(in_file))){
-        set_line_pos(&state, c);
+        if(c == '\n'){
+            close_blocks(&state);
+            close_in_lines(&state);
 
-        if(!format_break(&state, in_file, c)){ /* if not blank line */
-            if(state.line_pos == START){ /* If start check for blocks */
-                if (!(
-                            format_ol_list(&state, in_file, c) ||
-                            format_ul_list(&state, in_file, c) ||
-                            format_html(&state, in_file, c)    ||
-                            format_code(&state, in_file, c)    ||
-                            format_header(&state, in_file, c)  || 
-                            format_hr(&state, in_file, c)      ||
-                     )) {
-                    state.block = B_NONE;
-                    fputs("<p>", stdout);
-                    if(!(
-                                in_line_emphasis(&state, in_file, c) ||
-                                in_line_code(&state, in_file, c)     ||
-                                in_line_link(&state, in_file, c))) {
-                        fputc(c, stdout);
-                    }
-                }
-            } else if (state.line_pos == END){ /* If end check for closing blocks */
-                close_blocks(&state);
-                close_in_lines(&state);
-                fputc(c, stdout);
-            } else {
+            fputc(c, stdout);
+
+            state.line++;
+            state.last_col = state.col;
+            state.col = 1;
+        } else if (state.col == 1) {
+            if (!(
+                format_break(&state, in_file, c)   ||
+                format_ol_list(&state, in_file, c) ||
+                format_ul_list(&state, in_file, c) ||
+                format_html(&state, in_file, c)    ||
+                format_code(&state, in_file, c)    ||
+                format_header(&state, in_file, c)  || 
+                format_hr(&state, in_file, c))) {
+
+                state.block = B_NONE;
+                fputs("<p>", stdout);
+
                 if(!(
-                            in_line_emphasis(&state, in_file, c) ||
-                            in_line_code(&state, in_file, c)     ||
-                            in_line_link(&state, in_file, c))) {
+                    in_line_emphasis(&state, in_file, c) ||
+                    in_line_code(&state, in_file, c)     ||
+                    in_line_link(&state, in_file, c))) {
+
                     fputc(c, stdout);
                 }
+            }
+            state.col++;
+        } else {
+            if(!(
+                in_line_emphasis(&state, in_file, c) ||
+                in_line_code(&state, in_file, c)     ||
+                in_line_link(&state, in_file, c))) {
+                fputc(c, stdout);
+                state.col++;
             }
         }
     }
