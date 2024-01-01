@@ -1,18 +1,18 @@
 /* mini-mark-zero-sugar
  *
- * mimi-mark-zero-sugar is a zero-sugar-markdown parser. zero-sugar beacuse it
+ * mini-mark-zero-sugar is a zero-sugar-markdown parser. Zero-sugar because it
  * both dose not use a buffer directly in a program, it only uses getc and
- * ungetc (ungetc is only ever called once beacuse by the c standard thats all
- * you are garenteed). I did this as more of a challenge then to makke
+ * ungetc (ungetc is only ever called once because by the c standard that's all
+ * you are guaranteed). I did this as more of a challenge then to make
  * anything practical. So don't try and use this for anything practical for
  * that see cmark(https://github.com/commonmark/cmark). This dose not
- * impiment common mark or even the standard from original markdown. I made
- * my own zero-sugar markdown like syntax beacuse dealing with certian things
+ * implement common mark or even the standard from original markdown. I made
+ * my own zero-sugar markdown like syntax because dealing with certain things
  * in markdown (like link references) would have sucked. Once again this was
  * more of a what if rather than a use this, don't use this for anything
  * important.
  *
- * Written by Oliver D'Esposiot (O-Despo)
+ * Written by Oliver D'Esposito (O-Despo)
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,7 +24,7 @@ int m_fgetc(State *state, FILE *in_file, int c) {
     /* int m_fgetc(State *state, FILE *in_file, int c)
      *
      * m_fgetc wraps getc and keeps track of cols and lines.
-     * Returns the new charater. Side effect cols and lines in state.
+     * Returns the new character. Side effect cols and lines in state.
      */
     c = fgetc(in_file);
 
@@ -43,7 +43,7 @@ int m_ungetc(State *state, FILE *in_file, int c) {
     /* int m_ungetc(State *state, FILE *in_file, int c)
      *
      * m_ungetc wraps ungetc and keeps track of cols and lines.
-     * Returns the charater passed. Side effect cols and lines in state.
+     * Returns the character passed. Side effect cols and lines in state.
      */
     ungetc(c, in_file);
 
@@ -60,7 +60,7 @@ int m_ungetc(State *state, FILE *in_file, int c) {
 short format_break(State *state, FILE *in_file, char c) {
     /* short format_break(State *state, FILE *in_file, char c)
      *
-     * Will format a line break. Follows block format behavoir.
+     * Will format a line break. Follows block format behavior.
      */
     short formated = 0;
 
@@ -75,9 +75,9 @@ short format_break(State *state, FILE *in_file, char c) {
 short format_html(State *state, FILE *in_file, char c) {
     /* short format_html(State *state, FILE *in_file, char c){
      *
-     * Formates a html block. This is a consuming block it will move thorugh
-     * the file until a closing charater is found. Uses level to keep track of
-     * open and closed html tags. Follows block format behavoir.
+     * Formates a html block. This is a consuming block it will move through
+     * the file until a closing character is found. Uses level to keep track of
+     * open and closed html tags. Follows block format behavior.
      */
     short level = 1;
     short formated = 0;
@@ -90,7 +90,7 @@ short format_html(State *state, FILE *in_file, char c) {
         c = m_fgetc(state, in_file, c);
 
         if (c == '<') {
-            /* Special espcae for single tags*/
+            /* Special escape for single tags*/
             level = 0;
 
             while (c != '>' && (c = m_fgetc(state, in_file, c)) != EOF) {
@@ -127,9 +127,9 @@ short format_html(State *state, FILE *in_file, char c) {
 short format_code(State *state, FILE *in_file, char c) {
     /* short format_code(State *state, FILE *in_file, char c)
      *
-     * Formates a code block. This is a consuming block it will move thorugh
-     * the file until a closing charater is found. Uses level to keep track of
-     * open and closed html tags. Follows block format behavoir.
+     * Formates a code block. This is a consuming block it will move through
+     * the file until a closing character is found. Uses level to keep track of
+     * open and closed html tags. Follows block format behavior.
      */
     short formated = 0;
     if (c == '`') {
@@ -162,8 +162,8 @@ short format_code(State *state, FILE *in_file, char c) {
 short format_header(State *state, FILE *in_file, char c) {
     /* short format_header(State *state, FILE *in_file, char c){
      *
-     * Formats headers modifyes state. Whole line operator.
-     * Uses level to track header level up to 6. Follow block format behavoir.
+     * Formats headers modifies state. Whole line operator.
+     * Uses level to track header level up to 6. Follow block format behavior.
      */
     int formated = 0;
     if (c == '#') {
@@ -189,8 +189,8 @@ short format_header(State *state, FILE *in_file, char c) {
 short format_hr(State *state, FILE *in_file, char c) {
     /* short format_hr(State *state, FILE *in_file, char c) {
      *
-     * Format horozontal rules. If anything comes after a horizontal rule
-     * it is removed. Follows block format behavoir.
+     * Format horizontal rules. If anything comes after a horizontal rule
+     * it is removed. Follows block format behavior.
      */
     int formated = 0;
 
@@ -219,7 +219,7 @@ short format_hr(State *state, FILE *in_file, char c) {
 short format_ul_list(State *state, FILE *in_file, char c) {
     /* short format_ul_list(State *state, FILE *in_file, char c)
      *
-     * Format a unorderd list. Dose not consume. Follows block format behavoir.
+     * Format a unordered list. Dose not consume. Follows block format behavior.
      */
     int formated = 0;
     if (c == '*' || c == '+' || c == '-') {
@@ -256,7 +256,7 @@ short format_ul_list(State *state, FILE *in_file, char c) {
 short format_ol_list(State *state, FILE *in_file, char c) {
     /* short format_ol_list(State *state, FILE *in_file, char c)
      *
-     * Format ordered list. Dose not consume. Follows block format behavoir.
+     * Format ordered list. Dose not consume. Follows block format behavior.
      */
     int formated = 0;
     if (c == '0' || c == '1' || c == '2' || c == '3' || c == '4' ||
