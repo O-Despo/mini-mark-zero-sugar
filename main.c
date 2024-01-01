@@ -19,6 +19,8 @@ typedef struct {
     int last_col;
     int level; /* Used for open close tags */
 } State;
+     /* Returns 1 if formating was done and no other block formattng
+     * should be run*/
 
 int m_fgetc(State *state, FILE *in_file, int c){
     c = fgetc(in_file);
@@ -47,13 +49,11 @@ int m_ungetc(State *state, FILE *in_file, int c){
     return c;
 }
 
-int format_break(State *state, FILE *in_file, char c){
+short format_break(State *state, FILE *in_file, char c){
     /* short format_break(State *state, FILE *in_file, char c)
      *
-     * Two END charecters in a row then insert a blank line. Write to file.
-     * On format reuturns 1. Dose not effect state.
      */
-    int formated = 0;
+    short formated = 0;
 
     if(c == '='){
         fputs("</br>\n", stdout);
@@ -63,36 +63,24 @@ int format_break(State *state, FILE *in_file, char c){
     return formated;
 }
 
-int format_html(State *state, FILE *in_file, char c){
+short format_html(State *state, FILE *in_file, char c){
     /* int format_html(State *state, FILE *in_file, char c){
      * If a html elm is matched than formatting is stoped until its close
      */
-    int formated = 0;
+    short formated = 0;
 
     if(c == '<'){
         state->level = 1;
         formated = 1;
 
-        /* Check if this is a single tag */
         fputc(c, stdout);
-        c = m_fgetc(state, in_file, c); /* TODO add EOF check */
-        
-        
-
+        c = m_fgetc(state, in_file, c);
         if(c == '<'){ /* Special espcae for single tags*/
-            c = m_fgetc(state, in_file, c);
-            
-
-            if(c == '<'){
-                state->level = 0;
+               state->level = 0;
 
                 while(c != '>' && (c = m_fgetc(state, in_file, c)) != EOF){ 
-                    
                     fputc(c, stdout); 
-                }               
-            } else {
-                m_ungetc(state, in_file, c);
-            }
+                }
         } else {
             /* If its multi tag then move through html until there are as many closing
              * as opening tags */
@@ -104,11 +92,10 @@ int format_html(State *state, FILE *in_file, char c){
                     fputc(c, stdout);
                     c = m_fgetc(state, in_file, c); /* TODO check for EOF */
                     
-                    if(c == '<'){
-                    } else if (c == '/') {
+                    if (c == '/') {
                         state->level--;
                         fputc(c, stdout);
-                    } else {
+                    } else if (c != '<'){
                         state->level++;
                         fputc(c, stdout);
                     }
@@ -168,8 +155,7 @@ int format_header(State *state, FILE *in_file, char c){
      * Formats headers modifyes state. Whole line operator.
      * Uses level to track header level up to 6.
      *
-     * Returns 1 if formating was done and no other block formattng
-     * should be run
+
      */
     int formated = 0;
     if(c == '#'){
@@ -339,7 +325,6 @@ short escape(State *state, FILE *in_file, char c){
     if (c == '\\') {
         escaped = 1;
         c = m_fgetc(state, in_file, c);
-        
         fputc(c, in_file);
     }
 
@@ -376,13 +361,10 @@ short in_line_link(State *state, FILE *in_file, char c){
         fputs("\">", stdout);
         c = m_fgetc(state, in_file, c);
         
-        
         if(c == '('){
             while ((c = m_fgetc(state, in_file, c)) != EOF && c != ')') {
-                
                 fputc(c, stdout);
             }                 
-
             fputs("</a>", stdout);
         } else {
             printf("ERR: Linke with no '(' got '%c'\n", c);
@@ -451,11 +433,13 @@ int main(int argc, char *argv[]){
 
     /* Start processing file */
     while(EOF != (c = m_fgetc(&state, in_file, c))){
-        if(c == '\n'){
+
+        if (c == '\n') {
             close_blocks(&state);
             close_in_lines(&state);
 
             fputc(c, stdout);
+
         } else if (state.col == 1) {
             if (!(
                 format_break(&state, in_file, c)   ||
@@ -469,7 +453,7 @@ int main(int argc, char *argv[]){
                 state.block = P;
                 fputs("<p>", stdout);
 
-                if(!(
+                if (!(
                     in_line_emphasis(&state, in_file, c) ||
                     in_line_code(&state, in_file, c)     ||
                     in_line_link(&state, in_file, c))) {
@@ -478,7 +462,7 @@ int main(int argc, char *argv[]){
                 }
             }
         } else {
-            if(!(
+            if (!(
                 in_line_emphasis(&state, in_file, c) ||
                 in_line_code(&state, in_file, c)     ||
                 in_line_link(&state, in_file, c))) {
@@ -486,6 +470,8 @@ int main(int argc, char *argv[]){
             }
         }
     }
+
+    fclose(in_file);
 
     return 0;
 }
