@@ -2,8 +2,15 @@
 
 mimi-mark-zero-sugar is a zero-sugar-markdown parser. zero-sugar because it both dose not use a buffer directly in a program, it only uses getc and ungetc (ungetc is only ever called once because by the c standard that's all you are guaranteed). I did this as more of a challenge then to make anything practical. It would be far more practical to use a buffer. So don't try and use this for anything practical for that see [cmark](https://github.com/commonmark/cmark). 
 
-This dose not implement common mark or even the standard from original markdown. I made my own zero-sugar markdown like syntax because dealing with certain things in markdown (like link references) would have sucked. Once again this was more of a what if rather than a use this, don't use this for anything important.
+## Usage 
+
+`./mmzs.o infile.txt outfile.html`: process the infile and output it to the given file
+
+`./mmzs.o infile.txt`: prints to stdout
+
 ## mini-mark-zero-sugar standard
+
+This dose not implement common mark or even the standard from original markdown. I made my own zero-sugar markdown like syntax because dealing with certain things in markdown (like link references) would have sucked. Once again this was more of a what if rather than a use this, don't use this for anything important.
 
 There are two types of formatting in mini-mark-zero-sugar **blocks** and **inline**. 
 
