@@ -1,4 +1,104 @@
-# Header 1 *test*
+This is a example file.
 
-This is a test &
+# Header 1
+## Header 2 **Bold**
+### header 3 `code`
+#### Header 4
+##### Header 5
+###### Header 6
+####### Header 7 (but 6)
+
+`*in code*`
+
+# Test HTML
+
+<h1>This *emphasis* should have no effect</h1>
+
+=
+
+<div>
+    <p>This is a html block</p>
+    - This list wont be make
+</div>
+
+<<hr>
+
+Quick test of singe linke hr html
+There will be a bug you use a single line in another html block
+
+# Unicode
+He I technically have unicode support see ⧆. 
 of file output😊
+
+# Code
+
+How about some inline code `int i = 1` wow so cool.
+
+`` // Oh look
+### This header shoud not be processed beacuse its in a code block
+*nor emphasis*
+* nor list
+int i = 1;
+printf("#####");
+// Some code
+``
+
+# Testing bold and emphasis
+
+## *should* work in **Header**
+
+*in a paragraph* things **should defently** go as expected
+
+if I leave i* strong **open should close
+
+if I leave em *open should close
+
+should not be processed `*in code*`
+
+# HR
+
+-- all goes away
+--
+--
+## OR list
+
+1. Hello world
+3. What a great *DAY*
+
+2. Anotehr
+4. one 
+5. with 
+6. more 
+9. stuff
+1. in `<div> it </div>`
+
+Just a paragraph
+
+## UL list
+
+- list 1
+* list 2
+
+* l2
+* l3 *bold*;
+
+*bold*
+
+## Links
+this is a [https://google.com](link to google). in a <p> tag
+this formmating [https://google.com](*link*to google). Should have not effect
+- Link [https://google.com](in a list).
+
+- how cool
+
+## Test escapes
+
+\# no a heading
+\\ just a \\
+\*\*not bold\*\*
+\_no emphais\_
+\+ not a list
+\1. also not a list
+
+``
+int i = 1;
